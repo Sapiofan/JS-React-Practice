@@ -1,5 +1,5 @@
 import React from "react";
-import * as utils from './utils';
+import * as utils from './utils.js';
 
 function Square(props) {
 
@@ -12,11 +12,11 @@ function Square(props) {
 }
 
 export default class Board extends React.Component{
-    renderSquare(coordinates, squareClass){
+    renderSquare(coordinates, squareClasses){
         return(
             <Square 
             key = {coordinates}
-            squareClass = {squareClass}
+            squareClasses = {squareClasses}
             onClick = {() => this.props.onClick(coordinates)}
             />
         );

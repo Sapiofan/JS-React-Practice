@@ -1,33 +1,31 @@
 import React from 'react';
-// import './checkers/checkers.css';
-
-import { createBrowserHistory } from "history";
-import { Router } from 'react-router-dom';
-import Board from './board';
-import {returnPlayerName} from './utils';
-import { Moving } from './moving';
-
-const browserHistory = createBrowserHistory();
-
+import Board from './board.js';
+import {returnPlayerName} from './utils.js';
+import { Moving } from './moving.js';
 export class Checkers extends React.Component {
-    constructor(props){
+    constructor(props) {
         super(props);
+
         this.columns = this.setColumns();
+
+        this.Moving = new Moving(this.columns);
+
         this.state = {
-            stepNumber: 0,
             history: [{
                 boardState: this.createBoard(),
-                currentPlayer: true
+                currentPlayer: false,
             }],
+            activePiece: null,
             moves: [],
-            activePiece: false,
-            hasJumped: false,
-            kill: false,
-            winner: null
+            jumpKills: null,
+            hasJumped: null,
+            stepNumber: 0,
+            lastStep: 0,
+            winner: null,
         }
     }
 
-    setColumns(){
+    setColumns() {
         const columns = {};
         columns.a = 0;
         columns.b = 1;
@@ -37,46 +35,53 @@ export class Checkers extends React.Component {
         columns.f = 5;
         columns.g = 6;
         columns.h = 7;
+
         return columns;
     }
 
-    createBoard(){
-        let board = {}
-        for(let key in this.columns){
-            if(this.columns.hasOwnProperty(key)){
-                for(let i = 1; i <= 8; i++){
-                    let row = key + i;
+    createBoard() {
+
+        let board = {};
+
+        for (let key in this.columns) {
+
+            if (this.columns.hasOwnProperty(key)) {
+                for (let n = 1; n <= 8 ; ++n) {
+
+                    let row = key + n;
                     board[row] = null;
                 }
             }
         }
+
         board = this.initPlayers(board);
+
         return board;
     }
 
-    initPlayers(board){
-        const player1 = ['b3', 'd3', 'f3', 'h3', 'a2', 'c2', 'e2', 'g2', 'b1', 'd1', 'f1', 'h1'];
-        const player2 = ['a8', 'c8', 'e8', 'g8', 'b7', 'd7', 'f7', 'h7', 'a6', 'c6', 'e6', 'g6'];
+    initPlayers(board) {
+        const player1 = ['a8', 'c8', 'e8', 'g8', 'b7', 'd7', 'f7', 'h7', 'a6', 'c6', 'e6', 'g6',];
+        const player2 = ['b3', 'd3', 'f3', 'h3', 'a2', 'c2', 'e2', 'g2', 'b1', 'd1', 'f1', 'h1',];
 
         let self = this;
 
-        player1.forEach(function(i){
+        player1.forEach(function (i) {
             board[i] = self.createPiece(i, 'player1');
         });
 
-        player2.forEach(function(i){
+        player2.forEach(function (i) {
             board[i] = self.createPiece(i, 'player2');
         });
 
         return board;
     }
 
-    createPiece(location, player){
+    createPiece(location, player) {
         let piece = {};
 
+        piece.player   = player;
         piece.location = location;
-        piece.player = player;
-        piece.isKing = false;
+        piece.isKing   = false;
 
         return piece;
     }
@@ -86,120 +91,164 @@ export class Checkers extends React.Component {
         return history[history.length - 1];
     }
 
-    handleClick(coordinates){
+    handleClick(coordinates) {
+
         if (this.state.winner !== null) {
             return;
         }
 
-        const currentState = this.getCurrentState;
+        const currentState = this.getCurrentState();
         const boardState = currentState.boardState;
         const clickedSquare = boardState[coordinates];
 
-        if(clickedSquare !== null){
+        // Clicked on a piece
+        if (clickedSquare !== null) {
+
             // Can't select opponents pieces
-            if(clickedSquare.player !== returnPlayerName(currentState.currentPlayer))
+            if (clickedSquare.player !== returnPlayerName(currentState.currentPlayer)) {
                 return;
+            }
 
             // Unset active piece if it's clicked
-            if(this.state.activePiece === coordinates && this.state.hasJumped === null){
+            if (this.state.activePiece === coordinates && this.state.hasJumped === null) {
                 this.setState({
                     activePiece: null,
                     moves: [],
-                    kill: null
+                    jumpKills: null,
                 });
                 return;
             }
 
             // Can't choose a new piece if player has already jumped.
-            if(this.state.hasJumped !== null && boardState[coordinates] !== null){
+            if (this.state.hasJumped !== null && boardState[coordinates] !== null) {
                 return;
             }
 
             // Set active piece
-            let move = Moving.getMove(boardState, coordinates, clickedSquare.isKing, false);
+            let movesData = this.Moving.getMoves(boardState, coordinates, clickedSquare.isKing, false);
 
             this.setState({
                 activePiece: coordinates,
-                moves: move[0],
-                kill: move[1]
+                moves: movesData[0],
+                jumpKills: movesData[1],
             });
 
             return;
         }
 
-        if(clickedSquare === null)
+        // Clicked on an empty square
+        if (this.state.activePiece === null) {
             return;
-        
+        }
+
         // Moving a piece
-        if(this.state.moves.length > 0){
-            const postMoveState = Moving.movePiece(coordinates, this.state);
+        if (this.state.moves.length > 0) {
+            const postMoveState = this.Moving.movePiece(coordinates, this.state);
 
             if (postMoveState === null) {
                 return;
             }
 
-            this.updatePostMoveState(postMoveState);
+            this.updateStatePostMove(postMoveState);
+
         }
     }
 
-    back(){
-        const backStep = parseInt(this.state.stepNumber) - 1;
-        if(backStep < 0){
+    updateStatePostMove(postMoveState) {
+        this.setState({
+            history: this.state.history.concat([{
+                boardState: postMoveState.boardState,
+                currentPlayer: postMoveState.currentPlayer,
+            }]),
+            activePiece: postMoveState.activePiece,
+            moves: postMoveState.moves,
+            jumpKills: postMoveState.jumpKills,
+            hasJumped: postMoveState.hasJumped,
+            stepNumber: this.state.history.length,
+            lastStep: this.state.history.length,
+            winner: postMoveState.winner,
+        });
+    }
+
+    back() {
+        const backStep = parseInt(this.state.stepNumber, 10) -1;
+        if (backStep < 0) {
             return;
         }
-        const previousHistory = this.state.history.slice(0, backStep + 1)
+        // const unsetHistory = this.state.history.slice(0, backStep+1);
         this.setState({
-            history: previousHistory,
+            // history: unsetHistory,
             activePiece: null,
             moves: [],
-            kill: null,
+            jumpKills: null,
             hasJumped: null,
             stepNumber: backStep,
             winner: null,
         });
     }
 
-    updatePostMoveState(move){
+    next(){
+        const nextStep = parseInt(this.state.stepNumber, 10) +1;
+        if (nextStep > this.state.lastStep) {
+            return;
+        }
+        const unsetHistory = this.state.history.slice(0, nextStep+1);
         this.setState({
-            history: this.state.history.concat([{
-                boardState: move.boardState,
-                currentPlayer: move.currentPlayer
-            }]),
-            activePiece: move.activePiece,
-            moves: move.moves,
-            hasJumped: move.hasJumped,
-            kill: move.kill,
-            stepNumber: this.state.history.length,
-            winner: move.winner
+            history: unsetHistory,
+            activePiece: null,
+            moves: [],
+            jumpKills: null,
+            hasJumped: null,
+            stepNumber: nextStep,
+            winner: null,
         });
     }
 
-    render(){
-        const stateHistory = this.state.history;
-        const currentState = stateHistory[this.state.stepNumber];
-        const currentPlayer = currentState.currentPlayer;
-        const boardState = currentState.boardState;
-        const activePiece = this.state.activePiece;
+    render() {
         const columns = this.columns;
+        const stateHistory = this.state.history;
+        const activePiece = this.state.activePiece;
+        const currentState = stateHistory[this.state.stepNumber];
+        const boardState = currentState.boardState;
+        const currentPlayer = currentState.currentPlayer;
         const moves = this.state.moves;
 
-        let backClass = "back";
         let gameStatus;
 
-        if (this.state.stepNumber < 1)
-            backClass += "disabled"; 
+        let backClass = 'back';
+        let nextClass = 'next';
 
-        switch(this.state.winner){
-            case "player1piece": gameStatus = "Player 1 wins"; break;
-            case "player2piece": gameStatus = "Player 2 wins"; break;
-            case "player1moves": gameStatus = "Player 2 can't move. Player 1 wins"; break;
-            case "player2moves": gameStatus = "Player 1 can't move. Player 2 wins"; break;
-            default: gameStatus = currentPlayer ? "Player 1" : "Player 2"; break;
+        if (this.state.stepNumber < 1) {
+            backClass += ' disabled';
+        }
+
+        if(this.state.lastStep === this.state.stepNumber){
+            nextClass += ' disabled'
+        }
+
+        switch (this.state.winner) {
+            case 'player1pieces':
+                gameStatus = 'Player One Wins!';
+                break;
+            case 'player2pieces':
+                gameStatus = 'Player Two Wins!';
+                break;
+            case 'player1moves':
+                gameStatus = 'No moves left - Player One Wins!';
+                break;
+            case 'player2moves':
+                gameStatus = 'No moves left - Player Two Wins!';
+                break;
+            default:
+                gameStatus = currentState.currentPlayer === true ? 'Player One' : 'Player Two';
+                break;
         }
         return(
-            <Router history={browserHistory} basename={'react-checkers'}>
-                <div className='game'>
-                    <div className='board'>
+                <div className="game">
+                    <div className="game-status">
+                        {gameStatus}
+                    </div>
+                    <div className="board">
                         <Board
                             boardState = {boardState}
                             currentPlayer = {currentPlayer}
@@ -209,15 +258,11 @@ export class Checkers extends React.Component {
                             onClick = {(coordinates) => this.handleClick(coordinates)}
                         />
                     </div>
-                    <div className="game-info">
-                        <div>{gameStatus}</div>
-                        <ol>{moves}</ol>
-                    </div>
-                    <div className='travel'>
+                    <div className="travel">
                         <button className={backClass} onClick={()=>this.back()}>Back</button>
+                        <button className={nextClass} onClick={()=>this.next()}>Next</button>
                     </div>
                 </div>
-            </Router>
         );
     }
 }

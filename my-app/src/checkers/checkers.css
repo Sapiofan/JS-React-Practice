@@ -18,7 +18,7 @@
     cursor: pointer;
 }
 
-.game-board {
+.board {
     display: inline-block;
     border: 10px solid #008b8b;
     position: relative;
@@ -38,14 +38,14 @@
     margin: 0 auto;
 }
 
-.time-travel {
+.travel {
     max-width: 660px;
     display: block;
     margin: 0 auto;
     text-align: right;
 }
 
-.undo {
+.back, .next {
     font-size: 15px;
     padding: 5px;
     border-radius: 0;
@@ -56,7 +56,7 @@
     cursor: pointer;
 }
 
-.undo.disabled {
+.back.disabled, .next.disabled {
     cursor: not-allowed;
     opacity: .4;
 }
@@ -97,16 +97,16 @@
 }
 
 .square.player1 {
-    background-image: url("images/white.png");
-}
-.square.player2 {
     background-image: url("images/black.png");
 }
+.square.player2 {
+    background-image: url("images/white.png");
+}
 .square.player1.king {
-    background-image: url("images/red.png");
+    background-image: url("images/blue.png");
 }
 .square.player2.king {
-    background-image: url("images/blue.png");
+    background-image: url("images/red.png");
 }
 
 @media only screen and (max-width: 700px) {

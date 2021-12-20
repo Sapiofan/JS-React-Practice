@@ -1,76 +1,12 @@
 import * as utils from './utils';
 
 export class Moving {
-    constructor(columns){
+    constructor(columns) {
         this.columns = columns;
     }
 
-    getMove(boardState, coordinates, isKing = false, hasJumped = false){
-        if(boardState[coordinates] === null){
-            return;
-        }
+    getCorners(coordinates) {
 
-        let moves = [];
-        let jumps = [];
-
-        let possibleMove = this.possibleMoves(coordinates);
-
-        let kills = {};
-
-        const row = utils.getRowAsInt(coordinates);
-        const player = boardState[coordinates].player;
-
-        const advanceRow = player === 'player1' ? row - 1 : row + 1;
-
-        for(let key in possibleMove){
-            if(!possibleMove.hasOwnProperty(key)){
-                continue;
-            }
-            let possibleCoordinates = possibleMove[key];
-
-            if(possibleCoordinates === null){
-                continue;
-            }
-
-            if (!isKing && possibleCoordinates.indexOf(advanceRow) < 0) {
-                continue;
-            }
-
-            if(boardState[possibleCoordinates] === null){
-                moves.push(possibleCoordinates);
-            }
-            else{
-                let neighborPiece = boardState[possibleCoordinates];
-
-                if (neighborPiece.player === player) {
-                    continue;
-                }
-
-                let opponentCorners = this.possibleMoves(possibleCoordinates);
-                let potentialJump = opponentCorners[key];
-
-                if (boardState[potentialJump] === null) {
-                    kills[possibleCoordinates] = potentialJump;
-                    jumps.push(potentialJump);
-                }
-            }
-        }
-
-        let movesOut;
-
-        if (hasJumped === false) {
-            movesOut = moves.concat(jumps);
-        } else {
-            // additional jump 
-            movesOut = jumps;
-        }
-
-        let killJumpsOut = jumps.length > 0 ? kills : null;
-
-        return [movesOut, killJumpsOut];
-    }
-
-    possibleMoves(coordinates){
         const col = utils.getColAsInt(this.columns, coordinates);
         const row = utils.getRowAsInt(coordinates);
 
@@ -90,26 +26,94 @@ export class Moving {
         return corners;
     }
 
-    movePiece(coordinates, state){
+    getMoves(boardState, coordinates, isKing = false, hasJumped = false) {
+
+        if (boardState[coordinates] === null) {
+            return [];
+        }
+
+        let moves = [];
+        let jumps = [];
+
+        let killJumps = {};
+
+        const corners = this.getCorners(coordinates);
+
+        const row = utils.getRowAsInt(coordinates);
+        const player = boardState[coordinates].player;
+
+        const advanceRow = player === 'player1' ? row - 1 : row + 1;
+
+        for (let key in corners) {
+            if (!corners.hasOwnProperty(key)) {
+                continue;
+            }
+
+            let cornerCoordinates = corners[key];
+
+            if (cornerCoordinates === null) {
+                continue;
+            }
+
+            if (!isKing && cornerCoordinates.indexOf(advanceRow) < 0) {
+                continue;
+            }
+
+            if (boardState[cornerCoordinates] === null) {
+                moves.push(cornerCoordinates);
+            } else {
+                let neighborPiece = boardState[cornerCoordinates];
+
+                if (neighborPiece.player === player) {
+                    continue;
+                }
+
+                let opponentCorners = this.getCorners(cornerCoordinates);
+                let potentialJump = opponentCorners[key];
+
+                if (boardState[potentialJump] === null) {
+                    killJumps[cornerCoordinates] = potentialJump;
+                    jumps.push(potentialJump);
+                }
+            }
+        }
+
+        let movesOut;
+
+        if (hasJumped === false) {
+            movesOut = moves.concat(jumps);
+        } else {
+            // If the piece has already jumped, only additional jumps are available
+            movesOut = jumps;
+        }
+
+        let killJumpsOut = jumps.length > 0 ? killJumps : null;
+
+        return [movesOut, killJumpsOut];
+
+    }
+
+    movePiece(coordinates, state) {
         let currentState  = Object.assign({}, state.history[state.stepNumber]);
         let boardState = Object.assign({}, currentState.boardState);
         let movingPiece = Object.assign({}, boardState[state.activePiece]);
 
         let jumpArray = [];
 
-        for(let key in state.kills){
-            if(!state.kills.hasOwnProperty(key)){
+        for (let key in state.jumpKills) {
+            if (!state.jumpKills.hasOwnProperty(key)) {
                 continue;
             }
-            jumpArray.push(state.kills[key])
+
+            jumpArray.push(state.jumpKills[key]);
         }
 
         // Don't move if the coordinates don't match a moveable or jumpable square.
-        if(state.moves.indexOf(coordinates) < 0 && jumpArray.indexOf(coordinates) < 0)
-        {
+        if (state.moves.indexOf(coordinates) < 0 && jumpArray.indexOf(coordinates) < 0) {
             return null;
         }
 
+        // King me maybe?
         if (this.shouldKing(movingPiece, coordinates)) {
             movingPiece.isKing = true;
         }
@@ -129,7 +133,7 @@ export class Moving {
             let opponentPosition = utils.getKeyByValue(state.jumpKills, coordinates);
             boardState[opponentPosition] = null;
 
-            newMoves = this.getMove(boardState, coordinates, movingPiece.isKing, true);
+            newMoves = this.getMoves(boardState, coordinates, movingPiece.isKing, true);
 
             if (newMoves[0].length > 0) {
                 hasJumped = true;
@@ -160,13 +164,14 @@ export class Moving {
         return stateOut;
     }
 
-    shouldKing(piece, coordinates){
-        if (piece.isKing === true) {
+    shouldKing(movingPiece, coordinates) {
+
+        if (movingPiece.isKing === true) {
             return false;
         }
 
         const row = utils.getRowAsInt(coordinates);
-        const player = piece.player;
+        const player = movingPiece.player;
 
         return ( (row === 1 && player === 'player1') || (row === 8 && player === 'player2') );
     }
@@ -184,7 +189,7 @@ export class Moving {
                 continue;
             }
 
-            const movesData = this.getMove(boardState, coordinates, boardState[coordinates].isKing, false);
+            const movesData = this.getMoves(boardState, coordinates, boardState[coordinates].isKing, false);
             const moveCount = movesData[0].length;
 
             if (boardState[coordinates].player === 'player1') {
